@@ -1,0 +1,52 @@
+{
+  "batch_id": "B-OOO-02",
+  "cutoff_ts": "2026-11-17T21:00:00Z",
+  "note": "乱序到达夹具：文件内装载顺序与 event_ts 顺序相反，且 H-9 与 H-3 同时间戳，须按 (event_ts, id) 定序。",
+  "hops": [
+    {
+      "id": "H-7",
+      "waybill_id": "WB-1001",
+      "waybill_title": "华东干线样件",
+      "event_ts": "2026-11-17T20:10:00Z",
+      "location_code": "CUSTOMER-A",
+      "event_code": "DELIVERED",
+      "seq": 7
+    },
+    {
+      "id": "H-9",
+      "waybill_id": "WB-1001",
+      "waybill_title": "华东干线样件",
+      "event_ts": "2026-11-17T18:05:00Z",
+      "location_code": "HZ-GATE",
+      "event_code": "IN_TRANSIT",
+      "seq": 5
+    },
+    {
+      "id": "H-8",
+      "waybill_id": "WB-1001",
+      "waybill_title": "华东干线样件",
+      "event_ts": "2026-11-17T15:00:00Z",
+      "location_code": "WX-HUB",
+      "event_code": "IN_TRANSIT",
+      "seq": 6
+    },
+    {
+      "id": "H-6",
+      "waybill_id": "WB-1002",
+      "waybill_title": "同城急送样件",
+      "event_ts": "2026-11-17T10:00:00Z",
+      "location_code": "SH-LOCAL",
+      "event_code": "OUT_FOR_DELIVERY",
+      "seq": 2
+    },
+    {
+      "id": "H-11",
+      "waybill_id": "WB-1002",
+      "waybill_title": "同城急送样件",
+      "event_ts": "2026-11-17T09:40:00Z",
+      "location_code": "SH-SORT",
+      "event_code": "ARRIVED_HUB",
+      "seq": 3
+    }
+  ]
+}
