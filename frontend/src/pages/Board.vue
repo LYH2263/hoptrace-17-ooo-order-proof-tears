@@ -36,16 +36,43 @@ watch(selected, (id) => {
 const hops = computed(() => detail.value?.hops || [])
 const proof = computed(() => detail.value?.proof)
 const orderProof = computed(() => detail.value?.order_proof)
+const attestation = computed(() => detail.value?.attestation)
+const liveAlignment = computed(() => detail.value?.live_alignment)
+const axisIds = computed(() => hops.value.map((h) => h.id))
 
 // 竖轴按 event_ts 的单调性检查（同时间戳允许并列）
 const monotonic = computed(() => {
   const ts = hops.value.map((h) => h.event_ts)
   return ts.every((v, i) => i === 0 || ts[i - 1] <= v)
 })
+// 测绘板本地再核一次：竖轴序必须与序证明、核证实体三方同序
+const axisProofAligned = computed(() => {
+  const ids = axisIds.value
+  const proofIds = orderProof.value?.ordered_hop_ids || []
+  const attAxis = attestation.value?.axis_hop_ids || []
+  const attProof = attestation.value?.proof_hop_ids || []
+  return (
+    ids.length > 0 &&
+    ids.length === proofIds.length &&
+    ids.every((id, i) => id === proofIds[i] && id === attAxis[i] && id === attProof[i])
+  )
+})
+const checks = computed(() => liveAlignment.value?.detail?.checks || {})
+const checkRows = computed(() => [
+  ['竖轴序 = 证明序', checks.value.axis_eq_proof_ids],
+  ['竖轴哈希 = 证明指纹', checks.value.axis_eq_proof_hash],
+  ['证明末点 = 末有效 hop', checks.value.last_hop_matches],
+  ['投影随末有效 hop 变', checks.value.proj_follows_last],
+  ['序证明行存在', checks.value.proof_row_present],
+])
 const lateCount = computed(() => hops.value.filter((h) => h.arrival_ord).length)
 const hashShort = computed(() => {
   const h = orderProof.value?.content_hash
   return h ? `${h.slice(0, 12)}…` : ''
+})
+const priorHashShort = computed(() => {
+  const h = attestation.value?.prior_content_hash
+  return h ? `${h.slice(0, 12)}…` : '—'
 })
 </script>
 
@@ -83,10 +110,14 @@ const hashShort = computed(() => {
           <span>{{ selected }}</span>
         </div>
 
-        <div class="order-banner" :class="{ ok: monotonic, bad: !monotonic }">
+        <div
+          class="order-banner"
+          :class="{ ok: monotonic && axisProofAligned, bad: !monotonic || !axisProofAligned }"
+        >
           <span class="dot-pulse" aria-hidden="true"></span>
           event_ts 序检查：{{ monotonic ? '单调不减 ✓（按 (event_ts, id) 物化）' : '存在逆序 ✗' }}
           <em v-if="lateCount"> · 迟到插入 {{ lateCount }} 点（已按序归位，未追加末尾）</em>
+          <em> · 竖轴/证明/核证三方同序：{{ axisProofAligned ? '是 ✓' : '否 ✗（撕裂态对外不可查）' }}</em>
         </div>
 
         <div class="v-axis" v-if="hops.length">
@@ -143,6 +174,38 @@ const hashShort = computed(() => {
           <dt>证明时间</dt><dd>{{ orderProof.created_at }}</dd>
         </dl>
         <p v-else class="muted">暂无序证明</p>
+
+        <h2>序撕裂核证</h2>
+        <dl class="kv" v-if="attestation">
+          <dt>批次键</dt><dd>{{ attestation.batch_id }}</dd>
+          <dt>撕裂结论</dt>
+          <dd>
+            <span class="verdict" :class="attestation.aligned ? 'ok' : 'bad'">
+              {{ attestation.tear_verdict }}{{ attestation.aligned ? ' ✓' : ' ✗' }}
+            </span>
+          </dd>
+          <dt>竖轴 hop 序</dt>
+          <dd class="id-chain">
+            <span v-for="(hid, i) in attestation.axis_hop_ids" :key="`a${hid}`" class="chain-item">
+              {{ hid }}<i v-if="i < attestation.axis_hop_ids.length - 1">→</i>
+            </span>
+          </dd>
+          <dt>新序哈希</dt>
+          <dd class="hash" :title="attestation.axis_content_hash">{{ attestation.axis_content_hash.slice(0, 12) }}…</dd>
+          <dt>旧序哈希</dt>
+          <dd class="hash" :title="attestation.prior_content_hash || ''">{{ priorHashShort }}</dd>
+          <dt>末点/投影</dt><dd>{{ attestation.last_hop_id }} · {{ attestation.proj_value }}</dd>
+          <dt>三方闸门</dt>
+          <dd>
+            <ul class="check-list">
+              <li v-for="row in checkRows" :key="row[0]" :class="{ ok: row[1], bad: !row[1] }">
+                {{ row[1] ? '✓' : '✗' }} {{ row[0] }}
+              </li>
+            </ul>
+          </dd>
+          <dt>核证时间</dt><dd>{{ attestation.created_at }}</dd>
+        </dl>
+        <p v-else class="muted">暂无核证（装载成功后同事务落库）</p>
       </aside>
 
       <footer class="pane dot-rail">

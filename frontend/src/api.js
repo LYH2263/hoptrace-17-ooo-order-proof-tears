@@ -31,4 +31,13 @@ export const api = {
     const qs = q.toString()
     return req(`/api/order-proofs${qs ? `?${qs}` : ''}`)
   },
+  attestations: ({ waybillId, batchId } = {}) => {
+    const q = new URLSearchParams()
+    if (waybillId) q.set('waybill_id', waybillId)
+    if (batchId) q.set('batch_id', batchId)
+    const qs = q.toString()
+    return req(`/api/order-tear-attestations${qs ? `?${qs}` : ''}`)
+  },
+  batchAttestations: (batchId) =>
+    req(`/api/batches/${encodeURIComponent(batchId)}/order-tear-attestations`),
 }

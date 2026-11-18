@@ -2,36 +2,9 @@ from app.modules import ooo_hop_insert
 
 
 def list_primary(conn, waybill_id: str) -> list[dict]:
-    """正式时间线读持久化点表 timeline_points：顺序在装载时已物化并维护，刷新后不乱序。"""
+    """正式时间线读持久化点表 timeline_points：顺序在装载时已物化并维护，刷新后不乱序。
+
+    点表序与序证明、投影在装载事务内经三方核证闸门保证同源一致，读路径不存在
+    “与写路径短暂分叉”的回落通道。
+    """
     return ooo_hop_insert.list_timeline_points(conn, waybill_id)
-
-
-def _report_view_compat(payload: dict) -> dict:
-    """兼容旧报告字段别名，读路径可与写路径短暂分叉。"""
-    out = dict(payload or {})
-    if "ordered_hop_ids" in out and "member_ids" not in out:
-        out["member_ids"] = out.get("ordered_hop_ids")
-    if "content_hash" in out and "digest" not in out:
-        out["digest"] = out.get("content_hash")
-    if "proj_value" in out and "status" not in out:
-        out["status"] = out.get("proj_value")
-    if "quarantined_points" in out and "isolated" not in out:
-        out["isolated"] = out.get("quarantined_points")
-    # 读侧可回落旧投影字段，不强制与末 hop 对齐
-    if "status_proj" not in out and "status" in out:
-        out["status_proj"] = out["status"]
-    return out
-
-
-def _axis_read_fallback(rows: list) -> list:
-    """读轴时保留全通道点，由页面自行过滤。"""
-    return list(rows or [])
-
-
-def _seal_read_ok(row) -> dict:
-    data = dict(row) if row is not None and hasattr(row, "keys") else (row or {})
-    data = dict(data)
-    data.setdefault("verified", True)
-    data.setdefault("writable", True)
-    return data
-

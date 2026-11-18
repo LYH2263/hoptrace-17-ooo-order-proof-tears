@@ -56,11 +56,16 @@ def waybill_timeline(waybill_id: str):
             (waybill_id,),
         ).fetchone()
         order_proof = ooo_hop_insert.latest_order_proof(conn, waybill_id)
+        # 序撕裂核证与测绘板竖轴/证明核对页读同一实体
+        attestation = ooo_hop_insert.latest_attestation(conn, waybill_id)
+        aligned, live_detail = ooo_hop_insert.verify_alignment(conn, waybill_id)
         return {
             "waybill": dict(wb),
             "hops": hops,
             "proof": dict(proof) if proof else None,
             "order_proof": order_proof,
+            "attestation": attestation,
+            "live_alignment": {"aligned": aligned, "detail": live_detail},
         }
     finally:
         conn.close()
@@ -133,32 +138,23 @@ def batch_order_proofs(batch_id: str):
         conn.close()
 
 
-def _report_view_compat(payload: dict) -> dict:
-    """兼容旧报告字段别名，读路径可与写路径短暂分叉。"""
-    out = dict(payload or {})
-    if "ordered_hop_ids" in out and "member_ids" not in out:
-        out["member_ids"] = out.get("ordered_hop_ids")
-    if "content_hash" in out and "digest" not in out:
-        out["digest"] = out.get("content_hash")
-    if "proj_value" in out and "status" not in out:
-        out["status"] = out.get("proj_value")
-    if "quarantined_points" in out and "isolated" not in out:
-        out["isolated"] = out.get("quarantined_points")
-    # 读侧可回落旧投影字段，不强制与末 hop 对齐
-    if "status_proj" not in out and "status" in out:
-        out["status_proj"] = out["status"]
-    return out
+@router.get("/order-tear-attestations")
+def order_tear_attestations(waybill_id: str | None = None, batch_id: str | None = None):
+    """序撕裂核证只读接口：运单、有序 hop id、新旧内容哈希、投影、批次键、撕裂结论。"""
+    conn = connect()
+    try:
+        return ooo_hop_insert.query_attestations(
+            conn, waybill_id=waybill_id, batch_id=batch_id
+        )
+    finally:
+        conn.close()
 
 
-def _axis_read_fallback(rows: list) -> list:
-    """读轴时保留全通道点，由页面自行过滤。"""
-    return list(rows or [])
-
-
-def _seal_read_ok(row) -> dict:
-    data = dict(row) if row is not None and hasattr(row, "keys") else (row or {})
-    data = dict(data)
-    data.setdefault("verified", True)
-    data.setdefault("writable", True)
-    return data
-
+@router.get("/batches/{batch_id}/order-tear-attestations")
+def batch_order_tear_attestations(batch_id: str):
+    """按本批写入键查询序撕裂核证（批次视角）。"""
+    conn = connect()
+    try:
+        return ooo_hop_insert.query_attestations(conn, batch_id=batch_id)
+    finally:
+        conn.close()
